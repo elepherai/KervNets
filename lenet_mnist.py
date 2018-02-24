@@ -10,7 +10,7 @@ cuda_num=0
 torch.manual_seed(1)    # reproducible
 
 # Hyper Parameters
-EPOCH = 20                      # train the training data n times, to save time, we just train 5 epoch
+EPOCH = 20              # train the training data n times, to save time, we just train 5 epoch
 BATCH_SIZE = 50
 LR = 0.001              # learning rate
 DOWNLOAD_MNIST = True   # set to False if you have downloaded
@@ -77,14 +77,15 @@ class KervNet(nn.Module):
                 kernel_size=5,              # filter size
                 stride=1,                   # filter movement/step
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
-                kernel='polynomial',
+                kernel_type='polynomial',
+                mapping='translation',
                 learnable=True
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
         )
         self.conv2 = nn.Sequential(         # input shape (6, 14, 14)
-            nn.Conv2d(6,16,5,1,0),          # output shape (16, 10, 10)
+            nn.Kerv2d(6,16,5,1,0,mapping='logpolar'),          # output shape (16, 10, 10)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (16, 5, 5)
         )
@@ -141,6 +142,7 @@ for epoch in range(EPOCH):
             accuracy = sum(pred_y == test_y) / float(test_y.size(0))
             print('(Epoch:%2d|Step:%4d )' % (epoch, step), '| train loss: %.4f' % loss.data[0], '| test accuracy: %.4f' % accuracy)
             # net.conv1[0].print_parameters()
+            # print(net.conv2[0].weight)
 
 # torch.save(net.state_dict(), 'model/klenet-5-mnist.pkl')
 
@@ -161,3 +163,6 @@ for data in test_loader:
 print('Accuracy of the network on the 10000 test images: %.3f %%' % (
     100.0 * correct / total))
 timer.toc()
+
+# print(net.conv1[0].weights)
+# print(net.conv1[0].weight)
