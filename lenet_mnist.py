@@ -85,7 +85,9 @@ class KervNet(nn.Module):
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
         )
         self.conv2 = nn.Sequential(         # input shape (6, 14, 14)
-            nn.Kerv2d(6,16,5,1,0,mapping='logpolar'),          # output shape (16, 10, 10)
+            nn.Kerv2d(6,16,5,1,0,           # output shape (16, 10, 10)
+                kernel_type='linear',
+                mapping='translation'),           
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (16, 5, 5)
         )

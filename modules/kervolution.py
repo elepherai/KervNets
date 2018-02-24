@@ -10,13 +10,6 @@ from torch.nn.modules.module import Module
 from torch.nn.parameter import Parameter
 from torch.nn.functional import conv2d
 
-class round_with_gradient(torch.autograd.Function):
-    def __init__(self):
-        super(round_with_gradient, self).__init__()
-    def forward(self, x):
-        return x.round()
-    def backward(self, g):
-        return g
 
 class Kerv2d(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, 
