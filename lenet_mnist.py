@@ -10,7 +10,7 @@ cuda_num=0
 torch.manual_seed(1)    # reproducible
 
 # Hyper Parameters
-EPOCH = 5                      # train the training data n times, to save time, we just train 5 epoch
+EPOCH = 20                      # train the training data n times, to save time, we just train 5 epoch
 BATCH_SIZE = 50
 LR = 0.001              # learning rate
 DOWNLOAD_MNIST = True   # set to False if you have downloaded
@@ -77,6 +77,8 @@ class KervNet(nn.Module):
                 kernel_size=5,              # filter size
                 stride=1,                   # filter movement/step
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
+                kernel='polynomial',
+                learnable=True
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
@@ -132,14 +134,13 @@ for epoch in range(EPOCH):
         loss.backward()
         optimizer.step()
 
-        # print('(Epoch:%d|Step:%d )' % (epoch, step), '| train loss: %.4f' % loss.data[0],)
-
         if step % 50 == 0:
             net.eval()
             test_output = net(test_x)
             pred_y = torch.max(test_output, 1)[1].data.squeeze()
             accuracy = sum(pred_y == test_y) / float(test_y.size(0))
             print('(Epoch:%2d|Step:%4d )' % (epoch, step), '| train loss: %.4f' % loss.data[0], '| test accuracy: %.4f' % accuracy)
+            # net.conv1[0].print_parameters()
 
 # torch.save(net.state_dict(), 'model/klenet-5-mnist.pkl')
 
