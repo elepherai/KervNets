@@ -77,17 +77,17 @@ class KervNet(nn.Module):
                 kernel_size=5,              # filter size
                 stride=1,                   # filter movement/step
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
-                kernel_type='polynomial',
                 mapping='translation',
-                learnable=True
+                kernel_type='polynomial',
+                learnable_kernel=True
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
         )
         self.conv2 = nn.Sequential(         # input shape (6, 14, 14)
             nn.Kerv2d(6,16,5,1,0,           # output shape (16, 10, 10)
-                kernel_type='linear',
-                mapping='translation'),           
+                mapping='translation',
+                kernel_type='linear'),
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (16, 5, 5)
         )
