@@ -43,19 +43,20 @@ class Kerv2d(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, 
             stride=1, padding=0, dilation=1, groups=1, bias=True,
             mapping='translation', kernel_type='linear', learnable_kernel=False,
-            balance=2, power=4, slope=1, gamma=5):
+            balance=2, power=4, slope=1, sigma=2, gamma=1):
         super(Kerv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.bias_flag, self.stride, self.padding, self.dilation, self.groups = bias, stride, padding, dilation, groups
         self.mapping, self.kernel_type = mapping, kernel_type
         self.kernel_size, self.learnable_kernel = kernel_size, learnable_kernel
         self.in_channels, self.out_channels = in_channels, out_channels
-        self.balance, self.power, self.slope, self.gamma = balance, power, slope, gamma
+        self.balance, self.power, self.slope, self.sigma, self.gamma = balance, power, slope, sigma, gamma
 
         # parameter for kernel type
         self.weight_ones = Variable(torch.cuda.FloatTensor(self.weight.size()).fill_(1/(self.kernel_size**2)), requires_grad=False)
         if learnable_kernel == True:
             # self.power   = nn.Parameter(torch.cuda.FloatTensor([power]), requires_grad=True) #accuracy 20 epoch 99.090% with init 3.8
             self.balance = nn.Parameter(torch.cuda.FloatTensor([balance]), requires_grad=True)
+            self.sigma   = nn.Parameter(torch.cuda.FloatTensor([sigma]), requires_grad=True)
             self.gamma   = nn.Parameter(torch.cuda.FloatTensor([gamma]), requires_grad=True)
             self.slope   = nn.Parameter(torch.cuda.FloatTensor([slope]), requires_grad=True)
 
@@ -99,20 +100,22 @@ class Kerv2d(nn.Conv2d):
         elif self.kernel_type == 'sigmoid':
             return (self.slope*y+self.balance).tanh()
         elif self.kernel_type == 'gaussian':
-            # ignore the weight_norm, which is constant,
             input_norm = conv2d(input**2, self.weight_ones, None, self.stride, self.padding, self.dilation, self.groups)
-            return (-self.gamma*(((input_norm-2*y).abs())**2)).exp()
+            weight_norm = (self.weights**2).sum(3).sum(2).sum(1).view(1,self.out_channels,1,1)
+            weight_norm = weight_norm.expand(input_norm.size()[0],-1,input_norm.size()[2],input_norm.size()[3])
+            return (-self.gamma*(weight_norm+input_norm-2*y)).exp()
         elif self.kernel_type == 'cauchy':
-            # ignore the weight_norm, which is constant, 
             input_norm = conv2d(input**2, self.weight_ones, None, self.stride, self.padding, self.dilation, self.groups)
-            return 1/(1+self.gamma*(((input_norm-2*y).abs())**2))
+            weight_norm = (self.weights**2).sum(3).sum(2).sum(1).view(1,self.out_channels,1,1)
+            weight_norm = weight_norm.expand(input_norm.size()[0],-1,input_norm.size()[2],input_norm.size()[3])
+            return 1/(1+(weight_norm+input_norm-2*y)/(self.sigma**2))
         else:
             return NotImplementedError()
     
     def print_parameters(self):
         if self.learnable_kernel:
-            print('power: %.2f, balance: %.2f, slope %.2f, gamma: %.2f' % (
-                self.power, self.balance.data[0], self.slope[0], self.gamma.data[0]))
+            print('power: %.2f, balance: %.2f, slope %.2f, sigma: %.2f, gamma: %.2f' % (
+                self.power, self.balance.data[0], self.slope[0], self.sigma.data[0], self.gamma.data[0]))
 
 
 nn.Kerv2d = Kerv2d
