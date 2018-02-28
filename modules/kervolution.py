@@ -43,13 +43,13 @@ class Kerv2d(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, 
             stride=1, padding=0, dilation=1, groups=1, bias=True,
             mapping='translation', kernel_type='linear', learnable_kernel=False,
-            balance=2, power=4, slope=1, sigma=2, gamma=1):
+            balance=2, power=3, sigma=2, gamma=1):
         super(Kerv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.bias_flag, self.stride, self.padding, self.dilation, self.groups = bias, stride, padding, dilation, groups
         self.mapping, self.kernel_type = mapping, kernel_type
         self.kernel_size, self.learnable_kernel = kernel_size, learnable_kernel
         self.in_channels, self.out_channels = in_channels, out_channels
-        self.balance, self.power, self.slope, self.sigma, self.gamma = balance, power, slope, sigma, gamma
+        self.balance, self.power, self.sigma, self.gamma = balance, power, sigma, gamma
 
         # parameter for kernel type
         self.weight_ones = Variable(torch.cuda.FloatTensor(self.weight.size()).fill_(1/(self.kernel_size**2)), requires_grad=False)
@@ -58,7 +58,6 @@ class Kerv2d(nn.Conv2d):
             self.balance = nn.Parameter(torch.cuda.FloatTensor([balance]), requires_grad=True)
             self.sigma   = nn.Parameter(torch.cuda.FloatTensor([sigma]), requires_grad=True)
             self.gamma   = nn.Parameter(torch.cuda.FloatTensor([gamma]), requires_grad=True)
-            self.slope   = nn.Parameter(torch.cuda.FloatTensor([slope]), requires_grad=True)
 
         # mapping functions
         if mapping == 'translation':
@@ -96,9 +95,9 @@ class Kerv2d(nn.Conv2d):
         if self.kernel_type == 'linear':
             return y
         elif self.kernel_type == 'polynomial':
-            return (self.slope*y+self.balance) ** self.power
+            return (y+self.balance) ** self.power
         elif self.kernel_type == 'sigmoid':
-            return (self.slope*y+self.balance).tanh()
+            return (y+self.balance).tanh()
         elif self.kernel_type == 'gaussian':
             input_norm = conv2d(input**2, self.weight_ones, None, self.stride, self.padding, self.dilation, self.groups)
             weight_norm = (self.weights**2).sum(3).sum(2).sum(1).view(1,self.out_channels,1,1)
@@ -114,8 +113,8 @@ class Kerv2d(nn.Conv2d):
     
     def print_parameters(self):
         if self.learnable_kernel:
-            print('power: %.2f, balance: %.2f, slope %.2f, sigma: %.2f, gamma: %.2f' % (
-                self.power, self.balance.data[0], self.slope[0], self.sigma.data[0], self.gamma.data[0]))
+            print('power: %.2f, balance: %.2f, sigma: %.2f, gamma: %.2f' % (
+                self.power, self.balance.data[0], self.sigma.data[0], self.gamma.data[0]))
 
 
 nn.Kerv2d = Kerv2d
