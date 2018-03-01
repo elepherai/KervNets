@@ -5,6 +5,7 @@ import torch.utils.data as Data
 import torchvision
 import modules
 from modules import Timer
+import visdom
 
 cuda_num=0
 torch.manual_seed(1)    # reproducible
@@ -79,6 +80,8 @@ class KervNet(nn.Module):
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
                 mapping='translation',
                 kernel_type='polynomial',
+                power=nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
+                balance=1.7,
                 learnable_kernel=True
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
@@ -119,6 +122,16 @@ optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
 loss_func = nn.CrossEntropyLoss()
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[9], gamma=0.1)
 
+
+vis = visdom.Visdom()
+train_steps, loss_history, accuracy_history = [],[],[]
+power_history, balance_history =[], []
+layout_loss = dict(title='Training loss on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'loss'})
+layout_accuracy = dict(title='Test accuracy on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'accuracy'})
+layout_power = dict(title='Power training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'power'})
+layout_balance = dict(title='Balance training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'balance'})
+
+
 # training and testing
 for epoch in range(EPOCH):
     scheduler.step()
@@ -142,11 +155,30 @@ for epoch in range(EPOCH):
             test_output = net(test_x)
             pred_y = torch.max(test_output, 1)[1].data.squeeze()
             accuracy = sum(pred_y == test_y) / float(test_y.size(0))
-            print('(Epoch:%2d|Step:%4d )' % (epoch, step), '| train loss: %.4f' % loss.data[0], '| test accuracy: %.4f' % accuracy)
-            # net.conv1[0].print_parameters()
-            # print(net.conv2[0].weight)
 
-# torch.save(net.state_dict(), 'model/klenet-5-mnist.pkl')
+            print('(Epoch:%2d|Step:%4d )' % (epoch, step), '| train loss: %.4f' % loss.data[0], '| test accuracy: %.4f' % accuracy)
+
+            train_steps.append(epoch+step/1200)
+            loss_history.append(loss.data[0])
+            accuracy_history.append(accuracy)
+            power_history.append(net.conv1[0].power.data[0])
+            balance_history.append(net.conv1[0].balance.data[0])
+
+            trace_loss = dict(x=train_steps, y=loss_history, mode="markers+lines", type='custom',
+                         marker={'color': 'red', 'size': "3"})
+
+            trace_accuracy = dict(x=train_steps, y=accuracy_history, mode="markers+lines", type='custom',
+                         marker={'color': 'red', 'size': "3"})
+            trace_power = dict(x=train_steps, y=power_history, mode="markers+lines", type='custom',
+                         marker={'color': 'red', 'size': "3"})
+            trace_balance = dict(x=train_steps, y=balance_history, mode="markers+lines", type='custom',
+                         marker={'color': 'red', 'size': "3"})
+            vis._send({'data':[trace_loss], 'layout': layout_loss, 'win':'loss'})
+            vis._send({'data':[trace_accuracy], 'layout': layout_accuracy, 'win':'accuracy'})
+            vis._send({'data':[trace_power], 'layout': layout_power, 'win':'power'})
+            vis._send({'data':[trace_balance], 'layout': layout_balance, 'win':'balance'})
+
+torch.save(net.state_dict(), 'checkpoint/kervlenet-poly-mnist.pkl')
 
 # Overall Accuracy
 correct = 0
