@@ -43,13 +43,16 @@ class Kerv2d(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, 
             stride=1, padding=0, dilation=1, groups=1, bias=True,
             mapping='translation', kernel_type='linear', learnable_kernel=False,
-            balance=2, power=3, sigma=2, gamma=1):
+            balance=2, power=3, sigma=2, gamma=1, use_visdom=False):
         super(Kerv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.bias_flag, self.stride, self.padding, self.dilation, self.groups = bias, stride, padding, dilation, groups
-        self.mapping, self.kernel_type = mapping, kernel_type
+        self.mapping, self.kernel_type, self.use_visdom = mapping, kernel_type, use_visdom
         self.kernel_size, self.learnable_kernel = kernel_size, learnable_kernel
         self.in_channels, self.out_channels = in_channels, out_channels
         self.balance, self.power, self.sigma, self.gamma = balance, power, sigma, gamma
+        if use_visdom and learnable_kernel:
+            self.vis = visdom.Visdom()
+            self.layout = dict(title=kernel_type+'kernel parameters', xaxis={'title':'step'})
 
         # parameter for kernel type
         self.weight_ones = Variable(torch.cuda.FloatTensor(self.weight.size()).fill_(1/(self.kernel_size**2)), requires_grad=False)
@@ -62,12 +65,15 @@ class Kerv2d(nn.Conv2d):
         # mapping functions
         if mapping == 'translation':
             return
+        
+        index_all = np.reshape(np.arange(self.weight.nelement()), (out_channels*in_channels, kernel_size**2))
         if mapping == 'polar':
             import cv2
             center = (kernel_size/2, kernel_size/2)
             radius = (kernel_size+1) / 2.0
             index = np.reshape(np.arange(kernel_size**2),(kernel_size,kernel_size))
             maps =  np.reshape(cv2.linearPolar(index, center, radius, cv2.WARP_FILL_OUTLIERS).astype(int), (kernel_size**2))
+            index_all[:,:] = index_all[:,maps]
         elif mapping == 'logpolar':
             import cv2
             center = (kernel_size/2, kernel_size/2)
@@ -75,12 +81,12 @@ class Kerv2d(nn.Conv2d):
             M = kernel_size / np.log(radius)
             index = np.reshape(np.arange(kernel_size**2),(kernel_size,kernel_size))
             maps =  np.reshape(cv2.logPolar(index, center, M, cv2.WARP_FILL_OUTLIERS).astype(int), (kernel_size**2))
+            index_all[:,:] = index_all[:,maps]
         elif mapping == 'random':
-            maps = np.random.randint(low=0, high=kernel_size**2, size=kernel_size**2)
+            for i in range(out_channels*in_channels):
+                index_all[i,:] = index_all[i, np.random.randint(low=0, high=kernel_size**2, size=kernel_size**2)]
         else:
             NotImplementedError()
-        index_all = np.reshape(np.arange(self.weight.nelement()), (out_channels*in_channels, kernel_size**2))
-        index_all[:,:] = index_all[:,maps]
         self.mapping_index = torch.cuda.LongTensor(index_all).view(-1)
 
     def forward(self, input):
@@ -91,7 +97,7 @@ class Kerv2d(nn.Conv2d):
             self.weights = self.weights.view(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
         y = conv2d(input, self.weights, self.bias, self.stride, self.padding, self.dilation, self.groups)
-        
+
         if self.kernel_type == 'linear':
             return y
         elif self.kernel_type == 'polynomial':
@@ -111,7 +117,9 @@ class Kerv2d(nn.Conv2d):
         else:
             return NotImplementedError()
     
-    def print_parameters(self):
+    def send_parameters(self):
+        trace_balance = dict(x=train_steps, y=balance_history, mode="markers+lines", type='custom',
+                         marker={'color': 'red', 'size': "3"})
         if self.learnable_kernel:
             print('power: %.2f, balance: %.2f, sigma: %.2f, gamma: %.2f' % (
                 self.power, self.balance.data[0], self.sigma.data[0], self.gamma.data[0]))
@@ -120,11 +128,11 @@ class Kerv2d(nn.Conv2d):
 nn.Kerv2d = Kerv2d
 
 if __name__ == '__main__':
-    kerv = nn.Kerv2d(in_channels=3,              # input height
-                     out_channels=6,             # n_filters
-                     kernel_size=5,              # filter size
+    kerv = nn.Kerv2d(in_channels=2,              # input height
+                     out_channels=3,             # n_filters
+                     kernel_size=3,              # filter size
                      stride=1,                   # filter movement/step
                      padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
-                     mapping='polar',            # mapping
+                     mapping='random',            # mapping
                      kernel_type='polynomial',   # kernel type
                      learnable_kernel=True)      # enable learning parameters
