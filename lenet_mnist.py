@@ -71,7 +71,7 @@ class ConvNet(nn.Module):
 class KervNet(nn.Module):
     def __init__(self):
         super(KervNet, self).__init__()
-        self.conv1 = nn.Sequential(
+        self.kerv1 = nn.Sequential(
             nn.Kerv2d(
                 in_channels=1,              # input height
                 out_channels=6,             # n_filters
@@ -80,17 +80,19 @@ class KervNet(nn.Module):
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
                 mapping='translation',
                 kernel_type='polynomial',
-                power=nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
-                balance=1.7,
-                learnable_kernel=True
+                learnable_kernel=True,
+                kernel_regularizer=False,
+                power = nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
+                balance = 1.7
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
         )
-        self.conv2 = nn.Sequential(         # input shape (6, 14, 14)
+        self.kerv2 = nn.Sequential(         # input shape (6, 14, 14)
             nn.Kerv2d(6,16,5,1,0,           # output shape (16, 10, 10)
                 mapping='translation',
-                kernel_type='linear'),
+                kernel_type='linear'
+                ),
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (16, 5, 5)
         )
@@ -99,8 +101,8 @@ class KervNet(nn.Module):
         self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
+        x = self.kerv1(x)
+        x = self.kerv2(x)
         x = x.view(x.size(0), -1)           # flatten the output of conv2 to (batch_size, 32 * 7 * 7)
         output = self.fc1(x)
         output = self.fc2(output)
@@ -125,10 +127,11 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[9], gamm
 
 vis = visdom.Visdom()
 train_steps, loss_history, accuracy_history = [],[],[]
-power_history, balance_history =[], []
+power_history, alpha_history, balance_history = [], [], []
 layout_loss = dict(title='Training loss on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'loss'})
 layout_accuracy = dict(title='Test accuracy on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'accuracy'})
-layout_power = dict(title='Power training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'power'})
+layout_alpha = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'alpha'})
+layout_power = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'power'})
 layout_balance = dict(title='Balance training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'balance'})
 
 
@@ -161,13 +164,15 @@ for epoch in range(EPOCH):
             train_steps.append(epoch+step/1200)
             loss_history.append(loss.data[0])
             accuracy_history.append(accuracy)
-            power_history.append(net.conv1[0].power.data[0])
-            balance_history.append(net.conv1[0].balance.data[0])
+            alpha_history.append(net.kerv1[0].alpha.data[0])
+            power_history.append(net.kerv1[0].power.data[0])
+            balance_history.append(net.kerv1[0].balance.data[0])
 
             trace_loss = dict(x=train_steps, y=loss_history, mode="markers+lines", type='custom',
                          marker={'color': 'red', 'size': "3"})
-
             trace_accuracy = dict(x=train_steps, y=accuracy_history, mode="markers+lines", type='custom',
+                         marker={'color': 'red', 'size': "3"})
+            trace_alpha = dict(x=train_steps, y=alpha_history, mode="markers+lines", type='custom',
                          marker={'color': 'red', 'size': "3"})
             trace_power = dict(x=train_steps, y=power_history, mode="markers+lines", type='custom',
                          marker={'color': 'red', 'size': "3"})
@@ -176,9 +181,10 @@ for epoch in range(EPOCH):
             vis._send({'data':[trace_loss], 'layout': layout_loss, 'win':'loss'})
             vis._send({'data':[trace_accuracy], 'layout': layout_accuracy, 'win':'accuracy'})
             vis._send({'data':[trace_power], 'layout': layout_power, 'win':'power'})
+            vis._send({'data':[trace_alpha], 'layout': layout_alpha, 'win':'alpha'})
             vis._send({'data':[trace_balance], 'layout': layout_balance, 'win':'balance'})
 
-torch.save(net.state_dict(), 'checkpoint/kervlenet-poly-mnist.pkl')
+torch.save(net.state_dict(), 'checkpoint/kervlenet-poly-mnist-power=4-b=1.5.pkl')
 
 # Overall Accuracy
 correct = 0

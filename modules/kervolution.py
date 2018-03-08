@@ -47,15 +47,15 @@ class Kerv2d(nn.Conv2d):
             alpha=0.03, balance=2, power=3, sigma=2, gamma=1):
         super(Kerv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.bias_flag, self.stride, self.padding, self.dilation, self.groups = bias, stride, padding, dilation, groups
-        self.mapping, self.kernel_type = mapping, kernel_type
-        self.kernel_size, self.learnable_kernel, self.kernel_regularizer = kernel_size, learnable_kernel, kernel_regularizer
+        self.kernel_size, self.mapping, self.kernel_type = kernel_size, mapping, kernel_type
+        self.learnable_kernel, self.kernel_regularizer = learnable_kernel, kernel_regularizer
         self.in_channels, self.out_channels = in_channels, out_channels
         self.alpha, self.balance, self.power, self.sigma, self.gamma = alpha, balance, power, sigma, gamma
 
         # parameter for kernel type
         self.weight_ones = Variable(torch.cuda.FloatTensor(self.weight.size()).fill_(1/(self.kernel_size**2)), requires_grad=False)
         if learnable_kernel == True:
-            # self.alpha   = nn.Parameter(torch.cuda.FloatTensor([alpha]), requires_grad=True)
+            self.alpha   = nn.Parameter(torch.cuda.FloatTensor([alpha]), requires_grad=True)
             self.balance = nn.Parameter(torch.cuda.FloatTensor([balance]), requires_grad=True)
             self.sigma   = nn.Parameter(torch.cuda.FloatTensor([sigma]), requires_grad=True)
             self.gamma   = nn.Parameter(torch.cuda.FloatTensor([gamma]), requires_grad=True)
