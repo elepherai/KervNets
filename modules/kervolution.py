@@ -35,6 +35,7 @@ class Kerv2d(nn.Conv2d):
     default is convolution:
              mapping     --> translation,
              kernel_type --> linear,
+    alpha is the regularizer to control kernel fitting
     balance, power, slope, gamma is valid only when the kernel_type is specified
     if learnable_kernel = True,  they just be the initial value of learable parameters
     if learnable_kernel = False, they are the value of kernel_type's parameter
@@ -42,22 +43,19 @@ class Kerv2d(nn.Conv2d):
     '''
     def __init__(self, in_channels, out_channels, kernel_size, 
             stride=1, padding=0, dilation=1, groups=1, bias=True,
-            mapping='translation', kernel_type='linear', learnable_kernel=False,
-            balance=2, power=3, sigma=2, gamma=1, use_visdom=False):
+            mapping='translation', kernel_type='linear', learnable_kernel=False, kernel_regularizer=False,
+            alpha=0.03, balance=2, power=3, sigma=2, gamma=1):
         super(Kerv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.bias_flag, self.stride, self.padding, self.dilation, self.groups = bias, stride, padding, dilation, groups
-        self.mapping, self.kernel_type, self.use_visdom = mapping, kernel_type, use_visdom
-        self.kernel_size, self.learnable_kernel = kernel_size, learnable_kernel
+        self.mapping, self.kernel_type = mapping, kernel_type
+        self.kernel_size, self.learnable_kernel, self.kernel_regularizer = kernel_size, learnable_kernel, kernel_regularizer
         self.in_channels, self.out_channels = in_channels, out_channels
-        self.balance, self.power, self.sigma, self.gamma = balance, power, sigma, gamma
-        if use_visdom and learnable_kernel:
-            self.vis = visdom.Visdom()
-            self.layout = dict(title=kernel_type+'kernel parameters', xaxis={'title':'step'})
+        self.alpha, self.balance, self.power, self.sigma, self.gamma = alpha, balance, power, sigma, gamma
 
         # parameter for kernel type
         self.weight_ones = Variable(torch.cuda.FloatTensor(self.weight.size()).fill_(1/(self.kernel_size**2)), requires_grad=False)
         if learnable_kernel == True:
-            # self.power   = nn.Parameter(torch.cuda.FloatTensor([power]), requires_grad=True) #accuracy 20 epoch 99.090% with init 3.8
+            # self.alpha   = nn.Parameter(torch.cuda.FloatTensor([alpha]), requires_grad=True)
             self.balance = nn.Parameter(torch.cuda.FloatTensor([balance]), requires_grad=True)
             self.sigma   = nn.Parameter(torch.cuda.FloatTensor([sigma]), requires_grad=True)
             self.gamma   = nn.Parameter(torch.cuda.FloatTensor([gamma]), requires_grad=True)
@@ -101,28 +99,31 @@ class Kerv2d(nn.Conv2d):
         if self.kernel_type == 'linear':
             return y
         elif self.kernel_type == 'polynomial':
-            return (y+self.balance) ** self.power
+            outputs = (y+self.balance) ** self.power
         elif self.kernel_type == 'sigmoid':
-            return (y+self.balance).tanh()
+            outputs = (y+self.balance).tanh()
         elif self.kernel_type == 'gaussian':
             input_norm = conv2d(input**2, self.weight_ones, None, self.stride, self.padding, self.dilation, self.groups)
             weight_norm = (self.weights**2).sum(3).sum(2).sum(1).view(1,self.out_channels,1,1)
             weight_norm = weight_norm.expand(input_norm.size()[0],-1,input_norm.size()[2],input_norm.size()[3])
-            return (-self.gamma*(weight_norm+input_norm-2*y)).exp()
+            outputs = (-self.gamma*(weight_norm+input_norm-2*y)).exp()
         elif self.kernel_type == 'cauchy':
             input_norm = conv2d(input**2, self.weight_ones, None, self.stride, self.padding, self.dilation, self.groups)
             weight_norm = (self.weights**2).sum(3).sum(2).sum(1).view(1,self.out_channels,1,1)
             weight_norm = weight_norm.expand(input_norm.size()[0],-1,input_norm.size()[2],input_norm.size()[3])
-            return 1/(1+(weight_norm+input_norm-2*y)/(self.sigma**2))
+            outputs = 1/(1+(weight_norm+input_norm-2*y)/(self.sigma**2))
         else:
             return NotImplementedError()
+
+        if self.kernel_regularizer:
+            outputs = outputs + self.alpha * self.weights.abs().mean()
+        
+        return outputs
     
-    def send_parameters(self):
-        trace_balance = dict(x=train_steps, y=balance_history, mode="markers+lines", type='custom',
-                         marker={'color': 'red', 'size': "3"})
+    def parameters(self):
         if self.learnable_kernel:
-            print('power: %.2f, balance: %.2f, sigma: %.2f, gamma: %.2f' % (
-                self.power, self.balance.data[0], self.sigma.data[0], self.gamma.data[0]))
+            print('alpha: %.3f, power: %.2f, balance: %.2f, sigma: %.2f, gamma: %.2f' % (
+                self.alpha.data[0], self.power, self.balance.data[0], self.sigma.data[0], self.gamma.data[0]))
 
 
 nn.Kerv2d = Kerv2d
@@ -132,7 +133,7 @@ if __name__ == '__main__':
                      out_channels=3,             # n_filters
                      kernel_size=3,              # filter size
                      stride=1,                   # filter movement/step
-                     padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
-                     mapping='random',            # mapping
+                     padding=1,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
+                     mapping='random',           # mapping
                      kernel_type='polynomial',   # kernel type
                      learnable_kernel=True)      # enable learning parameters
