@@ -17,13 +17,7 @@ class BasicBlock(nn.Module):
 
     def __init__(self, in_planes, planes, stride=1):
         super(BasicBlock, self).__init__()
-        self.kerv1 = nn.Kerv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False, 
-                                # learnable_kernel=True,
-                                # kernel_regularizer=True,
-                                # alpha=0.03,
-                                # kernel_type='polynomial',
-                                # power=3
-                                )
+        self.kerv1 = nn.Kerv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
         self.kerv2 = nn.Kerv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
@@ -128,5 +122,3 @@ def test():
     net = KResNet18()
     y = net(Variable(torch.randn(1,3,32,32)))
     print(y.size())
-
-# test()

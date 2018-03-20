@@ -17,11 +17,12 @@ from models.kresnet import *
 from torch.autograd import Variable
 
 cuda_num = 0
-epoch_num = 60
+epoch_num = 100
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
+parser.add_argument('--log', type=str, help='log folder')
 args = parser.parse_args()
 
 use_cuda = torch.cuda.is_available()
@@ -75,9 +76,9 @@ else:
     # net = ShuffleNetG2()
     # net = SENet18()
 
-    # net = KResNet18()
+    net = KResNet18()
     # net = KResNet50()
-    net = KResNet34()
+    # net = KResNet34()
 
 if use_cuda:
     net.cuda(cuda_num)
@@ -86,7 +87,7 @@ if use_cuda:
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150], gamma=0.1)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 75], gamma=0.1)
 
 # Training
 def train(epoch):
@@ -110,7 +111,8 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        print ('Train Epoch %3d' % epoch, 'batch %3d' %  batch_idx, 'Loss: %.3f | Acc: %.3f' % (train_loss/(batch_idx+1), 100.*correct/total))
+    print ('Train Epoch %3d' % epoch, 'batch %3d' %  batch_idx, 'Loss: %.3f | Acc: %.3f' % (train_loss/(batch_idx+1), 100.*correct/total))
+    return (train_loss/(batch_idx+1), 100.*correct/total)
         # progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
         #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
@@ -145,13 +147,21 @@ def test(epoch):
             'acc': acc,
             'epoch': epoch,
         }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/******.t7')
+        if not os.path.isdir('results/'+args.log):
+            os.mkdir('results/'+args.log)
+        torch.save(state, './results/'+args.log+'/'+args.log+'.t7')
         best_acc = acc
     print ('Test accuracy: %.3f' % best_acc)
+    return (test_loss/(batch_idx+1),acc)
 
-for epoch in range(start_epoch, start_epoch+200):
+f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
+f.write("epoch |  train_loss | test_loss | train_acc | test_acc\n")
+f.close()
+
+for epoch in range(start_epoch, start_epoch+epoch_num):
     scheduler.step()
-    train(epoch)
-    test(epoch)
+    train_loss, train_acc = train(epoch)
+    test_loss, test_acc = test(epoch)
+    f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
+    f.write("%d %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc))
+    f.close()
