@@ -16,6 +16,8 @@ import argparse
 from models.kresnet import *
 from torch.autograd import Variable
 
+cuda_num = 0
+epoch_num = 60
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -25,7 +27,6 @@ args = parser.parse_args()
 use_cuda = torch.cuda.is_available()
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-cuda_num = 0
 
 # Data
 print('==> Preparing data..')
@@ -146,7 +147,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/cifar-10-res50-poly-3.t7')
+        torch.save(state, './checkpoint/******.t7')
         best_acc = acc
     print ('Test accuracy: %.3f' % best_acc)
 

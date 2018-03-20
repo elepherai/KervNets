@@ -1,0 +1,3 @@
+[submodule "kervolution"]
+	path = kervolution
+	url = https://github.com/wang-chen/kervolution

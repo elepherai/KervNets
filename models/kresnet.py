@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import sys
 sys.path.append("..")
-import modules
+import kervolution
 
 class BasicBlock(nn.Module):
     expansion = 1
