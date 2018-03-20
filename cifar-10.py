@@ -17,7 +17,8 @@ from models.kresnet import *
 from torch.autograd import Variable
 
 cuda_num = 0
-epoch_num = 100
+epoch_num = 200
+milestones = [50, 100, 150]
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -87,7 +88,7 @@ if use_cuda:
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 75], gamma=0.1)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
 # Training
 def train(epoch):
@@ -156,6 +157,7 @@ def test(epoch):
 
 f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
 f.write("epoch |  train_loss | test_loss | train_acc | test_acc\n")
+f.write('milestones:'+str(milestones)+'\n')
 f.close()
 
 for epoch in range(start_epoch, start_epoch+epoch_num):
@@ -163,5 +165,5 @@ for epoch in range(start_epoch, start_epoch+epoch_num):
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
     f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
-    f.write("%d %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc))
+    f.write("%3d %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc))
     f.close()
