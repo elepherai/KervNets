@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import torchvision
 import torchvision.transforms as transforms
 
