@@ -144,7 +144,6 @@ def test(epoch):
         print('Saving..')
         state = {
             'net': net, #.module if use_cuda else net,
-            'net': net,
             'acc': acc,
             'epoch': epoch,
         }
@@ -155,8 +154,10 @@ def test(epoch):
     print ('Test accuracy: %.3f' % best_acc)
     return (test_loss/(batch_idx+1),acc)
 
-f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
-f.write("epoch |  train_loss | test_loss | train_acc | test_acc\n")
+if not os.path.isdir('results/'+args.log):
+    os.mkdir('results/'+args.log)
+f = open('./results/'+args.log+'/'+args.log+'.txt',"w+")
+f.write("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc\n")
 f.write('milestones:'+str(milestones)+'\n')
 f.close()
 
@@ -165,5 +166,5 @@ for epoch in range(start_epoch, start_epoch+epoch_num):
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
     f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
-    f.write("%3d %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc))
+    f.write("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
     f.close()
