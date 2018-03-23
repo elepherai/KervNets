@@ -52,16 +52,25 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False,
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+
+if not os.path.isdir('results/'+args.log):
+    os.mkdir('results/'+args.log)
+
 # Model
 if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
-    assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.t7')
+    assert os.path.isdir('results/'+args.log), 'Error: no checkpoint directory found!'
+    checkpoint = torch.load('./results/'+args.log+'/'+args.log+'.t7')
     net = checkpoint['net']
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 else:
+    f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
+    f.write("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc\n")
+    f.write('milestones:'+str(milestones)+'\n')
+    f.close()
+
     print('==> Building model..')
     # net = VGG('VGG19')
     # net = ResNet18()
@@ -77,9 +86,12 @@ else:
     # net = ShuffleNetG2()
     # net = SENet18()
 
-    net = KResNet18()
-    # net = KResNet50()
+    # net = KResNet18()
     # net = KResNet34()
+    # net = KResNet50()
+    net = KResNet101()
+    # net = KResNet152()
+
 
 if use_cuda:
     net.cuda(cuda_num)
@@ -153,13 +165,6 @@ def test(epoch):
         best_acc = acc
     print ('Test accuracy: %.3f' % best_acc)
     return (test_loss/(batch_idx+1),acc)
-
-if not os.path.isdir('results/'+args.log):
-    os.mkdir('results/'+args.log)
-f = open('./results/'+args.log+'/'+args.log+'.txt',"w+")
-f.write("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc\n")
-f.write('milestones:'+str(milestones)+'\n')
-f.close()
 
 for epoch in range(start_epoch, start_epoch+epoch_num):
     scheduler.step()
