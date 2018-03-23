@@ -72,6 +72,8 @@ else:
     f.close()
 
     print('==> Building model..')
+    print("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc")
+
     # net = VGG('VGG19')
     # net = ResNet18()
     # net = ResNet34()
@@ -104,7 +106,6 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestone
 
 # Training
 def train(epoch):
-    print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
     correct = 0
@@ -124,7 +125,6 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-    print ('Train Epoch %3d' % epoch, 'batch %3d' %  batch_idx, 'Loss: %.3f | Acc: %.3f' % (train_loss/(batch_idx+1), 100.*correct/total))
     return (train_loss/(batch_idx+1), 100.*correct/total)
         # progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
         #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
@@ -163,7 +163,6 @@ def test(epoch):
             os.mkdir('results/'+args.log)
         torch.save(state, './results/'+args.log+'/'+args.log+'.t7')
         best_acc = acc
-    print ('Test accuracy: %.3f' % best_acc)
     return (test_loss/(batch_idx+1),acc)
 
 for epoch in range(start_epoch, start_epoch+epoch_num):
@@ -173,3 +172,5 @@ for epoch in range(start_epoch, start_epoch+epoch_num):
     f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
     f.write("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
     f.close()
+    print("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
+
