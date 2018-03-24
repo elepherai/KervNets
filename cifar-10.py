@@ -14,6 +14,7 @@ import os
 import argparse
 
 from models.kresnet import *
+from models.kgooglenet import *
 from torch.autograd import Variable
 
 cuda_num = 0
@@ -91,8 +92,10 @@ else:
     # net = KResNet18()
     # net = KResNet34()
     # net = KResNet50()
-    net = KResNet101()
+    # net = KResNet101()
     # net = KResNet152()
+    net = KGoogLeNet()
+
 
 
 if use_cuda:
