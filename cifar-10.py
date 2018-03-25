@@ -25,6 +25,8 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--log', type=str, help='log folder')
+parser.add_argument('--folder', default='./results/', type=str, help='checkpoint saved folder')
+
 args = parser.parse_args()
 
 use_cuda = torch.cuda.is_available()
@@ -53,15 +55,10 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False,
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-# folder = '/content/drive/workspace/KervNets/results/'
-folder = './results/'
+folder = args.folder
 
 if not os.path.isdir(folder+args.log):
     os.mkdir(folder+args.log)
-
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
 # Model
 if args.resume:
@@ -103,6 +100,9 @@ else:
     # net = KResNet152()
     net = KGoogLeNet()
 
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
 
 if use_cuda:
