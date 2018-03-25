@@ -61,7 +61,7 @@ class KGoogLeNet(nn.Module):
     def __init__(self):
         super(KGoogLeNet, self).__init__()
         self.pre_layers = nn.Sequential(
-            nn.Conv2d(3, 192, kernel_size=3, padding=1,
+            nn.Kerv2d(3, 192, kernel_size=3, padding=1,
                         mapping='translation',
                         kernel_type='polynomial',
                         learnable_kernel=True,
