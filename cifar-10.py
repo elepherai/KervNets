@@ -53,21 +53,28 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False,
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+# folder = '/content/drive/workspace/KervNets/results/'
+folder = './results/'
 
-if not os.path.isdir('results/'+args.log):
-    os.mkdir('results/'+args.log)
+if not os.path.isdir(folder+args.log):
+    os.mkdir(folder+args.log)
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
 # Model
 if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
-    assert os.path.isdir('results/'+args.log), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./results/'+args.log+'/'+args.log+'.t7')
+    assert os.path.isdir(folder+args.log), 'Error: no checkpoint directory found!'
+    checkpoint = torch.load(folder+args.log+'/'+args.log+'.t7')
     net = checkpoint['net']
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
+    scheduler = checkpoint['scheduler']
 else:
-    f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
+    f = open(folder+args.log+'/'+args.log+'.txt',"a+")
     f.write("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc\n")
     f.write('milestones:'+str(milestones)+'\n')
     f.close()
@@ -103,9 +110,7 @@ if use_cuda:
     # net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
     cudnn.benchmark = True
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
+
 
 # Training
 def train(epoch):
@@ -161,10 +166,11 @@ def test(epoch):
             'net': net, #.module if use_cuda else net,
             'acc': acc,
             'epoch': epoch,
+            'scheduler': scheduler,
         }
-        if not os.path.isdir('results/'+args.log):
-            os.mkdir('results/'+args.log)
-        torch.save(state, './results/'+args.log+'/'+args.log+'.t7')
+        if not os.path.isdir(folder+args.log):
+            os.mkdir(folder+args.log)
+        torch.save(state, folder+args.log+'/'+args.log+'.t7')
         best_acc = acc
     return (test_loss/(batch_idx+1),acc)
 
@@ -172,7 +178,7 @@ for epoch in range(start_epoch, start_epoch+epoch_num):
     scheduler.step()
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
-    f = open('./results/'+args.log+'/'+args.log+'.txt',"a+")
+    f = open(folder+args.log+'/'+args.log+'.txt',"a+")
     f.write("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
     f.close()
     print("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
