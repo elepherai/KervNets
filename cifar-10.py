@@ -53,8 +53,6 @@ trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
 folder = args.folder
 
 if not os.path.isdir(folder+args.log):
@@ -69,6 +67,8 @@ if args.resume:
     net = checkpoint['net']
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
+    criterion = checkpoint['criterion']
+    optimizer = checkpoint['optimizer']
     scheduler = checkpoint['scheduler']
 else:
     f = open(folder+args.log+'/'+args.log+'.txt',"a+")
@@ -111,7 +111,6 @@ if use_cuda:
     cudnn.benchmark = True
 
 
-
 # Training
 def train(epoch):
     net.train()
@@ -134,8 +133,7 @@ def train(epoch):
         correct += predicted.eq(targets.data).cpu().sum()
 
     return (train_loss/(batch_idx+1), 100.*correct/total)
-        # progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-        #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
 
 def test(epoch):
     global best_acc
@@ -155,17 +153,16 @@ def test(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        #progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-        #    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
     # Save checkpoint.
     acc = 100.*correct/total
     if acc > best_acc:
         print('Saving..')
         state = {
-            'net': net, #.module if use_cuda else net,
+            'net': net,
             'acc': acc,
             'epoch': epoch,
+            'criterion': criterion,
+            'optimizer': optimizer,
             'scheduler': scheduler,
         }
         if not os.path.isdir(folder+args.log):
@@ -173,6 +170,7 @@ def test(epoch):
         torch.save(state, folder+args.log+'/'+args.log+'.t7')
         best_acc = acc
     return (test_loss/(batch_idx+1),acc)
+
 
 for epoch in range(start_epoch, start_epoch+epoch_num):
     scheduler.step()
