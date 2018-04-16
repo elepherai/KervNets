@@ -3,19 +3,29 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.utils.data as Data
 import torchvision
-import modules
-from modules import Timer
-import visdom
+import kervolution
+from kervolution import Timer
+import math
+# import visdom
+
+import os
+import argparse
+
+parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
+parser.add_argument('--epoch', default=20, type=int, help='epoch')
+parser.add_argument('--lr', default=0.001, type=float, help='Learning rate')
+# parser.add_argument('--log', type=str, help='log folder')
+parser.add_argument('--model', default='lekervnet', type=str, help='model')
+args = parser.parse_args()
 
 cuda_num=0
 torch.manual_seed(1)    # reproducible
-
 # Hyper Parameters
-EPOCH = 20              # train the training data n times, to save time, we just train 5 epoch
+EPOCH = args.epoch              # train the training data n times, to save time, we just train 5 epoch
 BATCH_SIZE = 50
-LR = 0.001              # learning rate
 DOWNLOAD_MNIST = True   # set to False if you have downloaded
-
+best_acc = 0
+LR = args.lr              # learning rate
 
 # Mnist digits dataset
 train_data = torchvision.datasets.MNIST(
@@ -36,9 +46,64 @@ test_loader = Data.DataLoader(dataset=test_data, batch_size=2000, shuffle=False)
 test_x, test_y = test_loader.__iter__().next()
 test_x = Variable(test_x, volatile=True)
 
-class ConvNet(nn.Module):
+class Net(nn.Module):    
     def __init__(self):
-        super(ConvNet, self).__init__()
+        super(Net, self).__init__()
+          
+        self.features = nn.Sequential(
+            nn.Kerv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Kerv2d(64, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+          
+        self.classifier = nn.Sequential(
+            nn.Dropout(p = 0.5),
+            nn.Linear(64 * 7 * 7, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p = 0.5),
+            nn.Linear(512, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p = 0.5),
+            nn.Linear(512, 10),
+        )
+          
+        for m in self.features.children():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+        
+        for m in self.classifier.children():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
+
+class LeConvNet(nn.Module):
+    def __init__(self):
+        super(LeConvNet, self).__init__()
         self.conv1 = nn.Sequential(         # input shape (1, 28, 28)
             nn.Conv2d(
                 in_channels=1,              # input height
@@ -68,9 +133,9 @@ class ConvNet(nn.Module):
         output = self.fc3(output)
         return output
 
-class KervNet(nn.Module):
+class LeKervNet(nn.Module):
     def __init__(self):
-        super(KervNet, self).__init__()
+        super(LeKervNet, self).__init__()
         self.kerv1 = nn.Sequential(
             nn.Kerv2d(
                 in_channels=1,              # input height
@@ -81,7 +146,7 @@ class KervNet(nn.Module):
                 mapping='translation',
                 kernel_type='polynomial',
                 learnable_kernel=True,
-                kernel_regularizer=False,
+                # kernel_regularizer=False,
                 power = nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
                 balance = 1.7
             ),                              # input shape (1, 28, 28)
@@ -109,8 +174,13 @@ class KervNet(nn.Module):
         output = self.fc3(output)
         return output
 
-# net = ConvNet()
-net = KervNet()
+if args.model == 'leconvnet':
+    net = LeConvNet()
+elif args.model == 'lekervnet':
+    net = LeKervNet()
+else:
+    net = Net()
+
 
 timer = Timer()
 
@@ -119,90 +189,89 @@ if torch.cuda.is_available():
     test_x = test_x.cuda(cuda_num)
     test_y = test_y.cuda(cuda_num)
 
+loss_func = nn.CrossEntropyLoss()
+
 # optimizer = torch.optim.Adam(net.parameters(), lr=LR)
 optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
-loss_func = nn.CrossEntropyLoss()
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[9], gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
 
-vis = visdom.Visdom()
-train_steps, loss_history, accuracy_history = [],[],[]
-power_history, alpha_history, balance_history = [], [], []
-layout_loss = dict(title='Training loss on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'loss'})
-layout_accuracy = dict(title='Test accuracy on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'accuracy'})
-layout_alpha = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'alpha'})
-layout_power = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'power'})
-layout_balance = dict(title='Balance training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'balance'})
+# vis = visdom.Visdom()
+# train_steps, loss_history, accuracy_history = [],[],[]
+# power_history, alpha_history, balance_history = [], [], []
+# layout_loss = dict(title='Training loss on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'loss'})
+# layout_accuracy = dict(title='Test accuracy on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'accuracy'})
+# layout_alpha = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'alpha'})
+# layout_power = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'power'})
+# layout_balance = dict(title='Balance training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'balance'})
 
 
-# training and testing
-for epoch in range(EPOCH):
+def train():
+    # net.train()
     scheduler.step()
-    for step, (x, y) in enumerate(train_loader):
-        b_x = Variable(x)
-        b_y = Variable(y)
-
-        if torch.cuda.is_available():
-            b_x = b_x.cuda(cuda_num)
-            b_y = b_y.cuda(cuda_num)
-
-        net.train()
-        output = net(b_x)
-        loss = loss_func(output, b_y)
+    train_loss = 0
+    correct = 0
+    total = 0
+    for batch_idx, (inputs, targets) in enumerate(train_loader):
+        # if use_cuda:
+        inputs, targets = inputs.cuda(cuda_num), targets.cuda(cuda_num)
         optimizer.zero_grad()
+        inputs, targets = Variable(inputs), Variable(targets)
+        outputs = net(inputs)
+        loss = loss_func(outputs, targets)
         loss.backward()
         optimizer.step()
 
-        if step % 50 == 0:
-            net.eval()
-            test_output = net(test_x)
-            pred_y = torch.max(test_output, 1)[1].data.squeeze()
-            accuracy = sum(pred_y == test_y) / float(test_y.size(0))
+        train_loss += loss.data[0]
+        _, predicted = torch.max(outputs.data, 1)
+        total += targets.size(0)
+        correct += predicted.eq(targets.data).cpu().sum()
 
-            print('(Epoch:%2d|Step:%4d )' % (epoch, step), '| train loss: %.4f' % loss.data[0], '| test accuracy: %.4f' % accuracy)
+    return (train_loss/(batch_idx+1), 100.*correct/total)
 
-            train_steps.append(epoch+step/1200)
-            loss_history.append(loss.data[0])
-            accuracy_history.append(accuracy)
-            alpha_history.append(net.kerv1[0].alpha.data[0])
-            power_history.append(net.kerv1[0].power.data[0])
-            balance_history.append(net.kerv1[0].balance.data[0])
+def test():
+    # Overall Accuracy
+    correct = 0
+    total = 0
+    loss_data=0
+    for data in test_loader:
+        images, labels = data
+        vi = Variable(images)
+        if torch.cuda.is_available():
+            vi = vi.cuda(cuda_num)
+            labels = labels.cuda(cuda_num)
+        outputs = net(vi)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum()
+        loss_data += loss_func(predicted, labels).data[0]
+    
+    return correct/float(total), loss_data/float(total)
 
-            trace_loss = dict(x=train_steps, y=loss_history, mode="markers+lines", type='custom',
-                         marker={'color': 'red', 'size': "3"})
-            trace_accuracy = dict(x=train_steps, y=accuracy_history, mode="markers+lines", type='custom',
-                         marker={'color': 'red', 'size': "3"})
-            trace_alpha = dict(x=train_steps, y=alpha_history, mode="markers+lines", type='custom',
-                         marker={'color': 'red', 'size': "3"})
-            trace_power = dict(x=train_steps, y=power_history, mode="markers+lines", type='custom',
-                         marker={'color': 'red', 'size': "3"})
-            trace_balance = dict(x=train_steps, y=balance_history, mode="markers+lines", type='custom',
-                         marker={'color': 'red', 'size': "3"})
-            vis._send({'data':[trace_loss], 'layout': layout_loss, 'win':'loss'})
-            vis._send({'data':[trace_accuracy], 'layout': layout_accuracy, 'win':'accuracy'})
-            vis._send({'data':[trace_power], 'layout': layout_power, 'win':'power'})
-            vis._send({'data':[trace_alpha], 'layout': layout_alpha, 'win':'alpha'})
-            vis._send({'data':[trace_balance], 'layout': layout_balance, 'win':'balance'})
 
-torch.save(net.state_dict(), 'checkpoint/kervlenet-poly-mnist-power=4-b=1.5.pkl')
+def test():
+    global best_acc
+    test_loss = 0
+    correct = 0
+    total = 0
+    for batch_idx, (inputs, targets) in enumerate(test_loader):
+        inputs, targets = inputs.cuda(cuda_num), targets.cuda(cuda_num)
+        inputs, targets = Variable(inputs, volatile=True), Variable(targets)
+        outputs = net(inputs)
+        loss = loss_func(outputs, targets)
 
-# Overall Accuracy
-correct = 0
-total = 0
-for data in test_loader:
-    images, labels = data
-    vi = Variable(images)
-    if torch.cuda.is_available():
-        vi = vi.cuda(cuda_num)
-        labels = labels.cuda(cuda_num)
-    outputs = net(vi)
-    _, predicted = torch.max(outputs.data, 1)
-    total += labels.size(0)
-    correct += (predicted == labels).sum()
+        test_loss += loss.data[0]
+        _, predicted = torch.max(outputs.data, 1)
+        total += targets.size(0)
+        correct += predicted.eq(targets.data).cpu().sum()
+    acc = 100.*correct/total
+    if acc > best_acc:
+        best_acc = acc
+    return (test_loss/(batch_idx+1),acc)
 
-print('Accuracy of the network on the 10000 test images: %.3f %%' % (
-    100.0 * correct / total))
-timer.toc()
 
-# print(net.conv1[0].weights)
-# print(net.conv1[0].weight)
+print("epoch, train_loss, test_loss, train_acc, test_acc, best_acc")
+for epoch in range(EPOCH):
+    train_loss, train_acc = train()
+    test_loss, test_acc = test()
+    print("%3d %f %f %f %f %f" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
