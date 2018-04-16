@@ -16,6 +16,9 @@ parser.add_argument('--epoch', default=20, type=int, help='epoch')
 parser.add_argument('--lr', default=0.001, type=float, help='Learning rate')
 parser.add_argument('--optimizer', default='sgd', type=str, help='optimizer type [sgd, adam]')
 parser.add_argument('--model', default='lekervnet', type=str, help='model')
+parser.add_argument('--kernel_type', default='polynomial', type=str, help='model')
+parser.add_argument('--learnable_kernel', default=True, type=bool, help='model')
+parser.add_argument('--kernel_param', default=0, type=float, help='model')
 args = parser.parse_args()
 
 cuda_num=0
@@ -51,7 +54,7 @@ class KervNet(nn.Module):
         super(KervNet, self).__init__()
           
         self.features = nn.Sequential(
-            nn.Kerv2d(1, 32, kernel_size=3, stride=1, padding=1, kernel_type='polynomial', learnable_kernel=True),
+            nn.Kerv2d(1, 32, kernel_size=3, stride=1, padding=1, kernel_type=args.kernel_type, learnable_kernel=args.learnable_kernel),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.Kerv2d(32, 32, kernel_size=3, stride=1, padding=1),
@@ -143,12 +146,13 @@ class LeKervNet(nn.Module):
                 kernel_size=5,              # filter size
                 stride=1,                   # filter movement/step
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
-                mapping='translation',
-                kernel_type='polynomial',
-                learnable_kernel=True,
+                kernel_type = args.kernel_type,
+                learnable_kernel=args.learnable_kernel,
+                # balance = args.kernel_param,
+                # gamma = args.kernel_param,
+                # sigma = args.kernel_param
                 # kernel_regularizer=False,
-                power = nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
-                balance = 1.7
+                # power = nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
@@ -196,7 +200,7 @@ if args.optimizer == 'adam':
 elif args.optimizer == 'sgd':
     optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
 
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=8, gamma=0.1)
 
 
 # vis = visdom.Visdom()
