@@ -14,7 +14,7 @@ import argparse
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--epoch', default=20, type=int, help='epoch')
 parser.add_argument('--lr', default=0.001, type=float, help='Learning rate')
-# parser.add_argument('--log', type=str, help='log folder')
+parser.add_argument('--optimizer', default='sgd', type=str, help='optimizer type [sgd, adam]')
 parser.add_argument('--model', default='lekervnet', type=str, help='model')
 args = parser.parse_args()
 
@@ -46,19 +46,19 @@ test_loader = Data.DataLoader(dataset=test_data, batch_size=2000, shuffle=False)
 test_x, test_y = test_loader.__iter__().next()
 test_x = Variable(test_x, volatile=True)
 
-class Net(nn.Module):    
+class KervNet(nn.Module):    
     def __init__(self):
-        super(Net, self).__init__()
+        super(KervNet, self).__init__()
           
         self.features = nn.Sequential(
-            nn.Kerv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.Kerv2d(1, 32, kernel_size=3, stride=1, padding=1, kernel_type='polynomial', learnable_kernel=True),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.Kerv2d(32, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.Kerv2d(32, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.Kerv2d(64, 64, kernel_size=3, padding=1),
@@ -178,8 +178,8 @@ if args.model == 'leconvnet':
     net = LeConvNet()
 elif args.model == 'lekervnet':
     net = LeKervNet()
-else:
-    net = Net()
+elif args.model == 'kervnet':
+    net = KervNet()
 
 
 timer = Timer()
@@ -191,8 +191,11 @@ if torch.cuda.is_available():
 
 loss_func = nn.CrossEntropyLoss()
 
-# optimizer = torch.optim.Adam(net.parameters(), lr=LR)
-optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
+if args.optimizer == 'adam':
+    optimizer = torch.optim.Adam(net.parameters(), lr=LR)
+elif args.optimizer == 'sgd':
+    optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
+
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
 
