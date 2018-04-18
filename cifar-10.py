@@ -16,6 +16,7 @@ import argparse
 from models.kresnet import *
 from models.kgooglenet import *
 from torch.autograd import Variable
+from kervolution import *
 
 cuda_num = 0
 epoch_num = 200
@@ -72,12 +73,12 @@ if args.resume:
     scheduler = checkpoint['scheduler']
 else:
     f = open(folder+args.log+'/'+args.log+'.txt',"a+")
-    f.write("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc\n")
+    f.write("epoch | train_loss | test_loss | train_acc | test_acc | best_acc | time_use\n")
     f.write('milestones:'+str(milestones)+'\n')
     f.close()
 
     print('==> Building model..')
-    print("epoch |  train_loss | test_loss | train_acc | test_acc | best_acc")
+    print("epoch | train_loss | test_loss | train_acc | test_acc | best_acc | time_use")
 
     # net = VGG('VGG19')
     # net = ResNet18()
@@ -94,11 +95,11 @@ else:
     # net = SENet18()
 
     # net = KResNet18()
-    # net = KResNet34()
+    net = KResNet34()
     # net = KResNet50()
     # net = KResNet101()
     # net = KResNet152()
-    net = KGoogLeNet()
+    # net = KGoogLeNet()
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
@@ -172,12 +173,15 @@ def test(epoch):
     return (test_loss/(batch_idx+1),acc)
 
 
+timer = Timer()
 for epoch in range(start_epoch, start_epoch+epoch_num):
+    timer.start()
     scheduler.step()
     train_loss, train_acc = train(epoch)
+    time_use = timer.end()/3600.0
     test_loss, test_acc = test(epoch)
     f = open(folder+args.log+'/'+args.log+'.txt',"a+")
-    f.write("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
+    f.write("%3d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
     f.close()
-    print("%3d %f %f %f %f %f\n" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
+    print("%3d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
 
