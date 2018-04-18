@@ -174,11 +174,12 @@ def test(epoch):
 
 
 timer = Timer()
+time_use = 0
 for epoch in range(start_epoch, start_epoch+epoch_num):
     timer.start()
     scheduler.step()
     train_loss, train_acc = train(epoch)
-    time_use = timer.end()/3600.0
+    time_use += timer.end()/3600.0
     test_loss, test_acc = test(epoch)
     f = open(folder+args.log+'/'+args.log+'.txt',"a+")
     f.write("%3d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
