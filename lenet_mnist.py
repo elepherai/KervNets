@@ -13,13 +13,19 @@ import argparse
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--epoch', default=20, type=int, help='epoch')
-parser.add_argument('--lr', default=0.001, type=float, help='Learning rate')
-parser.add_argument('--optimizer', default='sgd', type=str, help='optimizer type [sgd, adam]')
+parser.add_argument('--lr', default=0.003, type=float, help='Learning rate')
 parser.add_argument('--model', default='lekervnet', type=str, help='model')
 parser.add_argument('--kernel_type', default='polynomial', type=str, help='model')
 parser.add_argument('--learnable_kernel', default=True, type=bool, help='model')
+parser.add_argument('--verbose', default=False, type=bool, help='log verbose [only first 4 epoch]')
 parser.add_argument('--kernel_param', default=0, type=float, help='model')
+parser.add_argument('--log', type=str, help='log folder')
+parser.add_argument('--folder', default='./results/', type=str, help='checkpoint saved folder')
 args = parser.parse_args()
+
+folder = args.folder
+if not os.path.isdir(folder+args.log):
+    os.mkdir(folder+args.log)
 
 cuda_num=0
 torch.manual_seed(1)    # reproducible
@@ -148,11 +154,13 @@ class LeKervNet(nn.Module):
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
                 kernel_type = args.kernel_type,
                 learnable_kernel=args.learnable_kernel,
+                # gaussian=1,
+                # power=3,
+                # balance=1,
                 # balance = args.kernel_param,
                 # gamma = args.kernel_param,
                 # sigma = args.kernel_param
-                # kernel_regularizer=False,
-                # power = nn.Parameter(torch.cuda.FloatTensor([3.8]), requires_grad=True),
+                # kernel_regularizer=True,
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
@@ -195,32 +203,25 @@ if torch.cuda.is_available():
 
 loss_func = nn.CrossEntropyLoss()
 
-if args.optimizer == 'adam':
-    optimizer = torch.optim.Adam(net.parameters(), lr=LR)
-elif args.optimizer == 'sgd':
-    optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
+optimizer = torch.optim.SGD(net.parameters(), lr = LR, momentum=0.9)
 
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=8, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10,15], gamma=0.1)
 
 
-# vis = visdom.Visdom()
-# train_steps, loss_history, accuracy_history = [],[],[]
-# power_history, alpha_history, balance_history = [], [], []
-# layout_loss = dict(title='Training loss on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'loss'})
-# layout_accuracy = dict(title='Test accuracy on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'accuracy'})
-# layout_alpha = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'alpha'})
-# layout_power = dict(title='Alpha training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'power'})
-# layout_balance = dict(title='Balance training on MNIST', xaxis={'title':'epoch'}, yaxis={'title':'balance'})
+timer = Timer()
+time_use = 0
 
-
-def train():
-    # net.train()
+def train(epoch):
+    global timer, time_use
+    timer.start()
     scheduler.step()
     train_loss = 0
     correct = 0
     total = 0
+    time_use += timer.end()
+
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        # if use_cuda:
+        timer.start()
         inputs, targets = inputs.cuda(cuda_num), targets.cuda(cuda_num)
         optimizer.zero_grad()
         inputs, targets = Variable(inputs), Variable(targets)
@@ -233,27 +234,15 @@ def train():
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
+        time_use += timer.end()
+
+        if epoch < 4 and batch_idx%100==0 and args.verbose:
+            test_loss, test_acc = test()
+            f = open(folder+args.log+'/'+args.log+'_verbose.txt',"a+")
+            f.write("%d %d %f %f %f\n" % (epoch+1, batch_idx, test_loss, test_acc, time_use))
+            f.close()
 
     return (train_loss/(batch_idx+1), 100.*correct/total)
-
-def test():
-    # Overall Accuracy
-    correct = 0
-    total = 0
-    loss_data=0
-    for data in test_loader:
-        images, labels = data
-        vi = Variable(images)
-        if torch.cuda.is_available():
-            vi = vi.cuda(cuda_num)
-            labels = labels.cuda(cuda_num)
-        outputs = net(vi)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum()
-        loss_data += loss_func(predicted, labels).data[0]
-    
-    return correct/float(total), loss_data/float(total)
 
 
 def test():
@@ -276,9 +265,16 @@ def test():
         best_acc = acc
     return (test_loss/(batch_idx+1),acc)
 
+f = open(folder+args.log+'/'+args.log+'.txt',"a+")
+f.write("epoch | train_loss | test_loss | train_acc | test_acc | best_acc | time_use\n")
+f.close()
 
-print("epoch, train_loss, test_loss, train_acc, test_acc, best_acc")
+print("epoch, train_loss, test_loss, train_acc, test_acc, best_acc, time_use")
+
 for epoch in range(EPOCH):
-    train_loss, train_acc = train()
+    train_loss, train_acc = train(epoch)
     test_loss, test_acc = test()
-    print("%3d %f %f %f %f %f" % (epoch, train_loss, test_loss, train_acc, test_acc, best_acc))
+    f = open(folder+args.log+'/'+args.log+'.txt',"a+")
+    f.write("%d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
+    f.close()
+    print("%3d %f %f %f %f %f %f" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
