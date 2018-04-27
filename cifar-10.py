@@ -24,6 +24,7 @@ milestones = [50, 100, 150]
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--batch_size', default=128, type=int, help='minibatch size')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--log', type=str, help='log folder')
 parser.add_argument('--folder', default='./results/', type=str, help='checkpoint saved folder')
@@ -49,7 +50,7 @@ transform_test = transforms.Compose([
 ])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
@@ -73,8 +74,9 @@ if args.resume:
     scheduler = checkpoint['scheduler']
 else:
     f = open(folder+args.log+'/'+args.log+'.txt',"a+")
-    f.write("epoch | train_loss | test_loss | train_acc | test_acc | best_acc | time_use\n")
     f.write('milestones:'+str(milestones)+'\n')
+    f.write('batchsize: %d\n' % (args.batch_size))
+    f.write("epoch | train_loss | test_loss | train_acc | test_acc | best_acc | time_use\n")
     f.close()
 
     print('==> Building model..')
