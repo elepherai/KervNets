@@ -70,8 +70,8 @@ class KResNet(nn.Module):
         super(KResNet, self).__init__()
         self.in_planes = 64
 
+        # self.kerv1 = nn.Kerv2d(3, 64, 7, 1, 2,
         self.kerv1 = nn.Kerv2d(3, 64, 3, 1,
-                        mapping='translation',
                         kernel_type='polynomial',
                         learnable_kernel=True,
                         kernel_regularizer=False)
@@ -107,6 +107,12 @@ def KResNet18(num_classes=10):
 
 def KResNet34(num_classes=10):
     return KResNet(BasicBlock, [3,4,6,3], num_classes=num_classes)
+
+def KResNet42(num_classes=10):
+    return KResNet(BasicBlock, [4,5,7,4], num_classes=num_classes)
+
+def KResNet52(num_classes=10):
+    return KResNet(BasicBlock, [5,7,8,5], num_classes=num_classes)
 
 def KResNet50(num_classes=10):
     return KResNet(Bottleneck, [3,4,6,3], num_classes=num_classes)
