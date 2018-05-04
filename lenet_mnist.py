@@ -11,6 +11,7 @@ import math
 import os
 import argparse
 
+
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--epoch', default=20, type=int, help='epoch')
 parser.add_argument('--lr', default=0.003, type=float, help='Learning rate')
@@ -18,16 +19,18 @@ parser.add_argument('--model', default='lekervnet', type=str, help='model')
 parser.add_argument('--kernel_type', default='polynomial', type=str, help='model')
 parser.add_argument('--learnable_kernel', default=True, type=bool, help='model')
 parser.add_argument('--verbose', default=False, type=bool, help='log verbose [only first 4 epoch]')
-parser.add_argument('--kernel_param', default=0, type=float, help='model')
 parser.add_argument('--log', type=str, help='log folder')
 parser.add_argument('--folder', default='./results/', type=str, help='checkpoint saved folder')
+parser.add_argument('--cuda_num', default=0, type=int, help='cuda num')
+
 args = parser.parse_args()
 
 folder = args.folder
 if not os.path.isdir(folder+args.log):
     os.mkdir(folder+args.log)
 
-cuda_num=0
+cuda_num=args.cuda_num
+torch.cuda.set_device(cuda_num)
 torch.manual_seed(1)    # reproducible
 # Hyper Parameters
 EPOCH = args.epoch              # train the training data n times, to save time, we just train 5 epoch
@@ -53,7 +56,8 @@ test_data = torchvision.datasets.MNIST(root='./mnist/', train=False, transform=t
 
 test_loader = Data.DataLoader(dataset=test_data, batch_size=2000, shuffle=False)
 test_x, test_y = test_loader.__iter__().next()
-test_x = Variable(test_x, volatile=True)
+test_x = Variable(test_x)
+
 
 class KervNet(nn.Module):    
     def __init__(self):
@@ -153,14 +157,7 @@ class LeKervNet(nn.Module):
                 stride=1,                   # filter movement/step
                 padding=2,                  # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1
                 kernel_type = args.kernel_type,
-                learnable_kernel=args.learnable_kernel,
-                # gaussian=1,
-                # power=3,
-                # balance=1,
-                # balance = args.kernel_param,
-                # gamma = args.kernel_param,
-                # sigma = args.kernel_param
-                # kernel_regularizer=True,
+                learnable_kernel = args.learnable_kernel,
             ),                              # input shape (1, 28, 28)
             nn.ReLU(),                      # activation
             nn.MaxPool2d(2),                # output shape (6, 14, 14)
@@ -230,10 +227,10 @@ def train(epoch):
         loss.backward()
         optimizer.step()
 
-        train_loss += loss.data[0]
+        train_loss += loss.item()
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        correct += predicted.eq(targets.data).cpu().sum().item()
         time_use += timer.end()
 
         if epoch < 4 and batch_idx%100==0 and args.verbose:
@@ -252,14 +249,14 @@ def test():
     total = 0
     for batch_idx, (inputs, targets) in enumerate(test_loader):
         inputs, targets = inputs.cuda(cuda_num), targets.cuda(cuda_num)
-        inputs, targets = Variable(inputs, volatile=True), Variable(targets)
+        inputs, targets = Variable(inputs), Variable(targets)
         outputs = net(inputs)
         loss = loss_func(outputs, targets)
 
-        test_loss += loss.data[0]
+        test_loss += loss.item()
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        correct += predicted.eq(targets.data).cpu().sum().item()
     acc = 100.*correct/total
     if acc > best_acc:
         best_acc = acc
