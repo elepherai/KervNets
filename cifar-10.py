@@ -17,10 +17,11 @@ from models.kresnet import *
 from models.kgooglenet import *
 from torch.autograd import Variable
 from kervolution import *
+from models.resnet import *
+from models.googlenet import *
 
-cuda_num = 0
 epoch_num = 200
-milestones = [50, 100, 150]
+milestones = [50,100,150]
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -28,8 +29,12 @@ parser.add_argument('--batch_size', default=128, type=int, help='minibatch size'
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--log', type=str, help='log folder')
 parser.add_argument('--folder', default='./results/', type=str, help='checkpoint saved folder')
+parser.add_argument('--cuda_num', default=0, type=int, help='cuda number')
 
 args = parser.parse_args()
+
+cuda_num = args.cuda_num
+torch.cuda.set_device(cuda_num)
 
 use_cuda = torch.cuda.is_available()
 best_acc = 0.0  # best test accuracy
@@ -97,8 +102,12 @@ else:
     # net = SENet18()
 
     # net = KResNet18()
-    net = KResNet34()
+    net = KResNet32()
+    # net = KResNet34()
+    # net = KResNet42()
+    # net = KResNet46()
     # net = KResNet50()
+    # net = KResNet52()
     # net = KResNet101()
     # net = KResNet152()
     # net = KGoogLeNet()
@@ -107,6 +116,10 @@ else:
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
+# def count_parameters(model):
+#     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+# print('parameters:',count_parameters(net))
 
 if use_cuda:
     net.cuda(cuda_num)
@@ -184,7 +197,7 @@ for epoch in range(start_epoch, start_epoch+epoch_num):
     time_use += timer.end()/3600.0
     test_loss, test_acc = test(epoch)
     f = open(folder+args.log+'/'+args.log+'.txt',"a+")
-    f.write("%3d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
+    f.write("%d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
     f.close()
     print("%3d %f %f %f %f %f %f\n" % (epoch+1, train_loss, test_loss, train_acc, test_acc, best_acc, time_use))
 
