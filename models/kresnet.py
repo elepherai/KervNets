@@ -105,6 +105,9 @@ class KResNet(nn.Module):
 def KResNet18(num_classes=10):
     return KResNet(BasicBlock, [2,2,2,2], num_classes=num_classes)
 
+def KResNet32(num_classes=10):
+    return KResNet(BasicBlock, [3,4,5,3], num_classes=num_classes)
+
 def KResNet34(num_classes=10):
     return KResNet(BasicBlock, [3,4,6,3], num_classes=num_classes)
 
