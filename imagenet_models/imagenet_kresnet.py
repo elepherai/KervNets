@@ -1,7 +1,9 @@
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
-from .kervolution import Kerv2d
+import sys
+sys.path.append("..")
+import kervolution
 
 def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
@@ -85,12 +87,10 @@ class ResNet(nn.Module):
     def __init__(self, block, layers, num_classes=1000):
         self.inplanes = 64
         super(ResNet, self).__init__()
-        self.conv1 = Kerv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False,
-                mapping='translation',
+        self.conv1 = nn.Kerv2d(3, 64, kernel_size=7, stride=2, padding=3,bias=False,
                 kernel_type='polynomial',
                 learnable_kernel=False,
-                kernel_regularizer=False
-                )
+                kernel_regularizer=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
